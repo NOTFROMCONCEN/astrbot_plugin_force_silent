@@ -11,12 +11,16 @@ from astrbot.api.star import Context, Star, register
     "astrbot_plugin_force_silent",
     "NOTFROMCONCEN",
     "指定群号与管理员，强制 Bot 在目标群中静默（支持协同采集模式）",
-    "1.3.5",
+    "1.3.6",
 )
 class ForceSilentPlugin(Star):
     def __init__(self, context: Context, config: dict[str, Any] | None = None):
         super().__init__(context)
         self.config = config or {}
+        self._silent_groups_cache: set[str] = set()
+        self._silent_groups_sig = ""
+        self._manager_ids_cache: set[str] = set()
+        self._manager_ids_sig = ""
         self._received_group_events = 0
         self._matched_silent_group_events = 0
         self._stopped_events = 0
@@ -95,9 +99,10 @@ class ForceSilentPlugin(Star):
             if not arg:
                 yield event.plain_result("用法: /强制静默 添加群 <群号>")
                 return
-            groups = self._silent_groups()
+            groups = set(self._silent_groups())
             groups.add(arg)
             self.config["silent_group_ids"] = sorted(groups)
+            self._silent_groups_sig = ""
             self._save_config()
             yield event.plain_result(f"已添加静默群: {arg}")
             return
@@ -106,9 +111,10 @@ class ForceSilentPlugin(Star):
             if not arg:
                 yield event.plain_result("用法: /强制静默 删除群 <群号>")
                 return
-            groups = self._silent_groups()
+            groups = set(self._silent_groups())
             groups.discard(arg)
             self.config["silent_group_ids"] = sorted(groups)
+            self._silent_groups_sig = ""
             self._save_config()
             yield event.plain_result(f"已移除静默群: {arg}")
             return
@@ -146,11 +152,21 @@ class ForceSilentPlugin(Star):
 
     def _silent_groups(self) -> set[str]:
         data = self.config.get("silent_group_ids", []) or []
-        return {self._normalize(i) for i in data if self._normalize(i)}
+        normalized = [self._normalize(i) for i in data if self._normalize(i)]
+        sig = "|".join(sorted(normalized))
+        if sig != self._silent_groups_sig:
+            self._silent_groups_sig = sig
+            self._silent_groups_cache = set(normalized)
+        return self._silent_groups_cache
 
     def _manager_ids(self) -> set[str]:
         data = self.config.get("admin_user_ids", []) or []
-        return {self._normalize(i) for i in data if self._normalize(i)}
+        normalized = [self._normalize(i) for i in data if self._normalize(i)]
+        sig = "|".join(sorted(normalized))
+        if sig != self._manager_ids_sig:
+            self._manager_ids_sig = sig
+            self._manager_ids_cache = set(normalized)
+        return self._manager_ids_cache
 
     def _is_manager(self, event: AstrMessageEvent) -> bool:
         sender_id = self._normalize(event.get_sender_id())
