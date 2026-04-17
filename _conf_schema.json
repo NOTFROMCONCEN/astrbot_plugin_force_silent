@@ -1,0 +1,40 @@
+{
+  "enabled": {
+    "description": "是否启用强制静默",
+    "type": "bool",
+    "default": true
+  },
+  "cooperative_mode": {
+    "description": "协同模式（开启后不 stop_event，便于采集插件继续处理）",
+    "type": "bool",
+    "default": true
+  },
+  "verbose_log": {
+    "description": "是否输出详细日志",
+    "type": "bool",
+    "default": true
+  },
+  "silent_group_ids": {
+    "description": "需要强制静默的群号列表",
+    "type": "list",
+    "hint": "例如 [\"123456\", \"654321\"]",
+    "items": {
+      "type": "string"
+    },
+    "default": []
+  },
+  "admin_user_ids": {
+    "description": "可管理本插件的用户 ID 列表",
+    "type": "list",
+    "hint": "这些用户可用 /force_silent 指令管理",
+    "items": {
+      "type": "string"
+    },
+    "default": []
+  },
+  "allow_astrbot_admin": {
+    "description": "是否允许 AstrBot 管理员也能管理本插件",
+    "type": "bool",
+    "default": true
+  }
+}
