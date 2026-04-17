@@ -11,7 +11,7 @@ from astrbot.api.star import Context, Star, register
     "astrbot_plugin_force_silent",
     "NOTFROMCONCEN",
     "指定群号与管理员，强制 Bot 在目标群中静默（支持协同采集模式）",
-    "1.2.0",
+    "1.3.5",
 )
 class ForceSilentPlugin(Star):
     def __init__(self, context: Context, config: dict[str, Any] | None = None):
@@ -139,7 +139,7 @@ class ForceSilentPlugin(Star):
         return bool(self.config.get("enabled", True))
 
     def _cooperative_mode(self) -> bool:
-        return bool(self.config.get("cooperative_mode", False))
+        return bool(self.config.get("cooperative_mode", True))
 
     def _verbose_log_enabled(self) -> bool:
         return bool(self.config.get("verbose_log", True))
