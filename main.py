@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from typing import Any
 
@@ -11,7 +11,7 @@ from astrbot.api.star import Context, Star, register
     "astrbot_plugin_force_silent",
     "NOTFROMCONCEN",
     "指定群号与管理员，强制 Bot 在目标群中静默（支持协同采集模式）",
-    "1.3.6",
+    "1.3.7",
 )
 class ForceSilentPlugin(Star):
     def __init__(self, context: Context, config: dict[str, Any] | None = None):
@@ -227,3 +227,5 @@ class ForceSilentPlugin(Star):
 
     async def terminate(self):
         logger.info("[force_silent] terminated")
+
+
