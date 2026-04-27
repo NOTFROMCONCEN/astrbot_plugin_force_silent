@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 from typing import Any
 
@@ -122,7 +122,9 @@ class ForceSilentPlugin(Star):
         if action in {"协同开启", "co_on", "coop_on"}:
             self.config["cooperative_mode"] = True
             self._save_config()
-            yield event.plain_result("协同模式已开启（不 stop_event，允许采集插件接收消息）")
+            yield event.plain_result(
+                "协同模式已开启（不 stop_event，允许采集插件接收消息）"
+            )
             return
 
         if action in {"协同关闭", "co_off", "coop_off"}:
@@ -183,7 +185,9 @@ class ForceSilentPlugin(Star):
 
     def _status_text(self) -> str:
         enabled = "开启" if self._is_enabled() else "关闭"
-        mode = "协同（不截断事件）" if self._cooperative_mode() else "硬静默（stop_event）"
+        mode = (
+            "协同（不截断事件）" if self._cooperative_mode() else "硬静默（stop_event）"
+        )
         groups = ", ".join(sorted(self._silent_groups())) or "无"
         admins = ", ".join(sorted(self._manager_ids())) or "无"
         return (
@@ -227,13 +231,4 @@ class ForceSilentPlugin(Star):
 
     async def terminate(self):
         logger.info("[force_silent] terminated")
-
-
-
-
-
-
-
-
-
 
