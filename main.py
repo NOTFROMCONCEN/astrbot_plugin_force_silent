@@ -11,7 +11,7 @@ from astrbot.api.star import Context, Star, register
     "astrbot_plugin_force_silent",
     "NOTFROMCONCEN",
     "指定群号与管理员，强制 Bot 在目标群中静默（支持协同采集模式）",
-    "1.3.7",
+    "2.0.1",
 )
 class ForceSilentPlugin(Star):
     def __init__(self, context: Context, config: dict[str, Any] | None = None):
@@ -24,6 +24,7 @@ class ForceSilentPlugin(Star):
         self._received_group_events = 0
         self._matched_silent_group_events = 0
         self._stopped_events = 0
+        self._max_log_line_length = self._int_conf("max_log_line_length", 512)
         self._log_verbose(
             f"startup: enabled={self._is_enabled()} cooperative_mode={self._cooperative_mode()} "
             f"silent_groups={sorted(self._silent_groups())}"
@@ -37,7 +38,10 @@ class ForceSilentPlugin(Star):
         if not self._is_enabled():
             return
 
-        group_id = self._normalize(event.get_group_id())
+        try:
+            group_id = self._normalize(event.get_group_id())
+        except Exception:
+            return
         if not group_id:
             return
 
@@ -56,7 +60,8 @@ class ForceSilentPlugin(Star):
 
             event.stop_event()
             self._stopped_events += 1
-            logger.info(f"[force_silent] blocked outgoing flow in group: {group_id}")
+            if self._verbose_log_enabled():
+                logger.info(f"[force_silent] blocked outgoing flow in group: {group_id}")
 
     @filter.command("force_silent")
     async def force_silent(self, event: AstrMessageEvent):

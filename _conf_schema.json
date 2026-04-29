@@ -12,7 +12,7 @@
   "verbose_log": {
     "description": "是否输出详细日志",
     "type": "bool",
-    "default": true
+    "default": false
   },
   "silent_group_ids": {
     "description": "需要强制静默的群号列表",
