@@ -11,7 +11,7 @@ from astrbot.api.star import Context, Star, register
     "astrbot_plugin_force_silent",
     "NOTFROMCONCEN",
     "指定群号与管理员，强制 Bot 在目标群中静默（支持协同采集模式）",
-    "2.0.1",
+    "2.0.2",
 )
 class ForceSilentPlugin(Star):
     def __init__(self, context: Context, config: dict[str, Any] | None = None):
@@ -224,6 +224,12 @@ class ForceSilentPlugin(Star):
         if callable(save_fn):
             save_fn()
 
+    def _int_conf(self, key: str, default: int) -> int:
+        try:
+            return int(self.config.get(key, default))
+        except Exception:
+            return default
+
     def _log_verbose(self, text: str):
         if self._verbose_log_enabled():
             logger.info(f"[force_silent] {text}")
@@ -236,4 +242,5 @@ class ForceSilentPlugin(Star):
 
     async def terminate(self):
         logger.info("[force_silent] terminated")
+
 
