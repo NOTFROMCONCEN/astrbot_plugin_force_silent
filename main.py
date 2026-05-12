@@ -11,7 +11,7 @@ from astrbot.api.star import Context, Star, register
     "astrbot_plugin_force_silent",
     "NOTFROMCONCEN",
     "指定群号与管理员，强制 Bot 在目标群中静默（支持协同采集模式）",
-    "2.0.2",
+    "2.0.6",
 )
 class ForceSilentPlugin(Star):
     def __init__(self, context: Context, config: dict[str, Any] | None = None):
@@ -80,21 +80,21 @@ class ForceSilentPlugin(Star):
         if len(tokens) >= 3:
             arg = self._normalize(tokens[2])
 
-        if action in {"status", "状态"}:
+        if action in {"status", "状态", "狀態"}:
             yield event.plain_result(self._status_text())
             return
 
-        if action in {"统计", "stats"}:
+        if action in {"统计", "統計", "stats"}:
             yield event.plain_result(self._stats_text())
             return
 
-        if action in {"on", "开启"}:
+        if action in {"on", "开启", "開啟"}:
             self.config["enabled"] = True
             self._save_config()
             yield event.plain_result("强制静默已开启")
             return
 
-        if action in {"off", "关闭"}:
+        if action in {"off", "关闭", "關閉"}:
             self.config["enabled"] = False
             self._save_config()
             yield event.plain_result("强制静默已关闭")
@@ -112,7 +112,7 @@ class ForceSilentPlugin(Star):
             yield event.plain_result(f"已添加静默群: {arg}")
             return
 
-        if action in {"del_group", "remove_group", "删除群"}:
+        if action in {"del_group", "remove_group", "删除群", "刪除群"}:
             if not arg:
                 yield event.plain_result("用法: /强制静默 删除群 <群号>")
                 return
@@ -124,7 +124,7 @@ class ForceSilentPlugin(Star):
             yield event.plain_result(f"已移除静默群: {arg}")
             return
 
-        if action in {"协同开启", "co_on", "coop_on"}:
+        if action in {"协同开启", "協同開啟", "co_on", "coop_on"}:
             self.config["cooperative_mode"] = True
             self._save_config()
             yield event.plain_result(
@@ -132,7 +132,7 @@ class ForceSilentPlugin(Star):
             )
             return
 
-        if action in {"协同关闭", "co_off", "coop_off"}:
+        if action in {"协同关闭", "協同關閉", "co_off", "coop_off"}:
             self.config["cooperative_mode"] = False
             self._save_config()
             yield event.plain_result("协同模式已关闭（恢复 stop_event 硬静默）")
@@ -145,6 +145,12 @@ class ForceSilentPlugin(Star):
     @filter.command("强制静默")
     async def force_silent_cn(self, event: AstrMessageEvent):
         """中文管理指令入口。"""
+        async for result in self.force_silent(event):
+            yield result
+
+    @filter.command("強制靜默")
+    async def force_silent_tw(self, event: AstrMessageEvent):
+        """繁體中文管理指令入口。"""
         async for result in self.force_silent(event):
             yield result
 
@@ -217,7 +223,11 @@ class ForceSilentPlugin(Star):
         if not self._is_manager(event):
             return False
         text = self._normalize(event.message_str)
-        return text.startswith("/强制静默") or text.startswith("/force_silent")
+        return (
+            text.startswith("/强制静默")
+            or text.startswith("/強制靜默")
+            or text.startswith("/force_silent")
+        )
 
     def _save_config(self):
         save_fn = getattr(self.config, "save_config", None)
@@ -231,8 +241,12 @@ class ForceSilentPlugin(Star):
             return default
 
     def _log_verbose(self, text: str):
-        if self._verbose_log_enabled():
-            logger.info(f"[force_silent] {text}")
+        if not self._verbose_log_enabled():
+            return
+        msg = f"[force_silent] {text}"
+        if len(msg) > self._max_log_line_length:
+            msg = msg[: self._max_log_line_length] + "...[truncated]"
+        logger.info(msg)
 
     @staticmethod
     def _normalize(value: Any) -> str:

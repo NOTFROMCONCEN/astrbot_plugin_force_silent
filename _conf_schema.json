@@ -36,5 +36,10 @@
     "description": "是否允许 AstrBot 管理员也能管理本插件",
     "type": "bool",
     "default": true
+  },
+  "max_log_line_length": {
+    "description": "单条日志最大长度，超出时截断",
+    "type": "int",
+    "default": 512
   }
 }
