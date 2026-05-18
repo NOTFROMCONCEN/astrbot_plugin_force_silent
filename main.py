@@ -1,6 +1,22 @@
 from __future__ import annotations
 
+import sys
+from pathlib import Path
 from typing import Any
+
+# 引入全局工具（支持在开发目录和打包后两种情况）
+_UTILS_PATH = Path(__file__).resolve().parent.parent / "utils"
+if str(_UTILS_PATH) not in sys.path:
+    sys.path.insert(0, str(_UTILS_PATH))
+
+try:
+    from command_parser import parse_command
+    from config_utils import env_override, mask_key, mask_config_for_log
+except Exception:
+    parse_command = None  # type: ignore[misc]
+    env_override = None  # type: ignore[misc]
+    mask_key = None  # type: ignore[misc]
+    mask_config_for_log = None  # type: ignore[misc]
 
 from astrbot.api import logger
 from astrbot.api.event import AstrMessageEvent, filter
@@ -11,12 +27,16 @@ from astrbot.api.star import Context, Star, register
     "astrbot_plugin_force_silent",
     "NOTFROMCONCEN",
     "指定群号与管理员，强制 Bot 在目标群中静默（支持协同采集模式）",
-    "2.0.6",
+    "2.1.0",
 )
 class ForceSilentPlugin(Star):
     def __init__(self, context: Context, config: dict[str, Any] | None = None):
         super().__init__(context)
         self.config = config or {}
+
+        # 配置安全治理：敏感字段 ENV 覆盖
+        self._load_secure_config()
+
         self._silent_groups_cache: set[str] = set()
         self._silent_groups_sig = ""
         self._manager_ids_cache: set[str] = set()
@@ -24,11 +44,30 @@ class ForceSilentPlugin(Star):
         self._received_group_events = 0
         self._matched_silent_group_events = 0
         self._stopped_events = 0
+        self._bypass_admin_events = 0
+        self._bypass_coop_events = 0
+        self._bypass_whitelist_events = 0
         self._max_log_line_length = self._int_conf("max_log_line_length", 512)
+
         self._log_verbose(
             f"startup: enabled={self._is_enabled()} cooperative_mode={self._cooperative_mode()} "
             f"silent_groups={sorted(self._silent_groups())}"
         )
+        self._log_config_safe()
+
+    def _load_secure_config(self) -> None:
+        """支持 ENV 覆盖敏感字段，并确保默认值安全。"""
+        if env_override is not None:
+            # 目前 force_silent 暂无高敏感字段需要 ENV 覆盖，保留接口一致性
+            pass
+
+    def _log_config_safe(self) -> None:
+        safe = (
+            mask_config_for_log(self.config)
+            if mask_config_for_log is not None
+            else self.config
+        )
+        self._log_verbose(f"config_safe={safe}")
 
     @filter.event_message_type(filter.EventMessageType.GROUP_MESSAGE)
     async def enforce_silent(self, event: AstrMessageEvent):
@@ -50,11 +89,19 @@ class ForceSilentPlugin(Star):
 
             # 允许管理员在静默群里发送管理指令，避免“锁死”无法改配置。
             if self._is_admin_command(event):
+                self._bypass_admin_events += 1
                 self._log_verbose("admin command bypassed in silent group")
+                return
+
+            # 白名单命令前缀放行
+            if self._is_whitelisted_command(event):
+                self._bypass_whitelist_events += 1
+                self._log_verbose("whitelist command bypassed in silent group")
                 return
 
             # 协同模式：不 stop_event，让采集插件仍可落库。
             if self._cooperative_mode():
+                self._bypass_coop_events += 1
                 self._log_verbose(f"cooperative mode pass-through in group: {group_id}")
                 return
 
@@ -71,14 +118,19 @@ class ForceSilentPlugin(Star):
             yield event.plain_result("无权限：你不是本插件管理员")
             return
 
-        tokens = [t for t in (event.message_str or "").strip().split() if t]
-        action = "status"
-        arg = ""
-
-        if len(tokens) >= 2:
-            action = tokens[1].lower()
-        if len(tokens) >= 3:
-            arg = self._normalize(tokens[2])
+        raw = event.message_str or ""
+        if parse_command is not None:
+            parsed = parse_command(raw)
+            action = parsed.arg(0, "status").lower()
+            arg = self._normalize(parsed.arg(1))
+        else:
+            tokens = [t for t in raw.strip().split() if t]
+            action = "status"
+            arg = ""
+            if len(tokens) >= 2:
+                action = tokens[1].lower()
+            if len(tokens) >= 3:
+                arg = self._normalize(tokens[2])
 
         if action in {"status", "状态", "狀態"}:
             yield event.plain_result(self._status_text())
@@ -201,12 +253,22 @@ class ForceSilentPlugin(Star):
         )
         groups = ", ".join(sorted(self._silent_groups())) or "无"
         admins = ", ".join(sorted(self._manager_ids())) or "无"
+        wl = self._whitelist_prefixes()
+        wl_text = ", ".join(wl) or "无"
+
+        # 策略优先级显式化
+        will_stop = self._will_stop_event_now()
+        stop_reason = self._stop_event_reason()
+
         return (
             "[强制静默]\n"
             f"- 开关: {enabled}\n"
             f"- 模式: {mode}\n"
             f"- 静默群: {groups}\n"
             f"- 插件管理员: {admins}\n"
+            f"- 白名单前缀: {wl_text}\n"
+            f"- 当前会 stop_event: {'是' if will_stop else '否'}\n"
+            f"- 原因: {stop_reason}\n"
             "- 指令: /强制静默 [状态|统计|开启|关闭|添加群 <群号>|删除群 <群号>|协同开启|协同关闭]"
         )
 
@@ -216,6 +278,9 @@ class ForceSilentPlugin(Star):
             f"- runtime_received_group_events: {self._received_group_events}\n"
             f"- runtime_matched_silent_group_events: {self._matched_silent_group_events}\n"
             f"- runtime_stopped_events: {self._stopped_events}\n"
+            f"- runtime_bypass_admin: {self._bypass_admin_events}\n"
+            f"- runtime_bypass_coop: {self._bypass_coop_events}\n"
+            f"- runtime_bypass_whitelist: {self._bypass_whitelist_events}\n"
             f"- cooperative_mode: {self._cooperative_mode()}"
         )
 
@@ -228,6 +293,40 @@ class ForceSilentPlugin(Star):
             or text.startswith("/強制靜默")
             or text.startswith("/force_silent")
         )
+
+    def _whitelist_prefixes(self) -> list[str]:
+        raw = self.config.get("whitelist_command_prefixes", [])
+        if isinstance(raw, list):
+            return [self._normalize(p) for p in raw if self._normalize(p)]
+        if isinstance(raw, str):
+            return [p.strip() for p in raw.split(",") if p.strip()]
+        return []
+
+    def _is_whitelisted_command(self, event: AstrMessageEvent) -> bool:
+        text = self._normalize(event.message_str)
+        if not text:
+            return False
+        for prefix in self._whitelist_prefixes():
+            if text.startswith(prefix):
+                return True
+        return False
+
+    def _will_stop_event_now(self) -> bool:
+        """基于当前配置，判断若命中静默群是否会 stop_event。"""
+        if not self._is_enabled():
+            return False
+        if self._cooperative_mode():
+            return False
+        return bool(self._silent_groups())
+
+    def _stop_event_reason(self) -> str:
+        if not self._is_enabled():
+            return "插件已关闭"
+        if not self._silent_groups():
+            return "无静默群"
+        if self._cooperative_mode():
+            return "协同模式开启，放行事件"
+        return "硬静默模式，命中静默群时 stop_event"
 
     def _save_config(self):
         save_fn = getattr(self.config, "save_config", None)
@@ -256,6 +355,3 @@ class ForceSilentPlugin(Star):
 
     async def terminate(self):
         logger.info("[force_silent] terminated")
-
-
-
