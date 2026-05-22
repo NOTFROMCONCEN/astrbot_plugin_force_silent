@@ -217,7 +217,11 @@ class ForceSilentPlugin(Star):
 
     def _silent_groups(self) -> set[str]:
         data = self.config.get("silent_group_ids", []) or []
-        normalized = [self._normalize(i) for i in data if self._normalize(i)]
+        normalized: list[str] = []
+        for item in data:
+            v = self._normalize(item)
+            if v:
+                normalized.append(v)
         sig = "|".join(sorted(normalized))
         if sig != self._silent_groups_sig:
             self._silent_groups_sig = sig
@@ -226,7 +230,11 @@ class ForceSilentPlugin(Star):
 
     def _manager_ids(self) -> set[str]:
         data = self.config.get("admin_user_ids", []) or []
-        normalized = [self._normalize(i) for i in data if self._normalize(i)]
+        normalized: list[str] = []
+        for item in data:
+            v = self._normalize(item)
+            if v:
+                normalized.append(v)
         sig = "|".join(sorted(normalized))
         if sig != self._manager_ids_sig:
             self._manager_ids_sig = sig
@@ -355,3 +363,4 @@ class ForceSilentPlugin(Star):
 
     async def terminate(self):
         logger.info("[force_silent] terminated")
+
